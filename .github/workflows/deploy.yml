@@ -111,10 +111,14 @@ jobs:
           script: |
             echo "=== Starting Deployment ==="
             
-            echo "1. Cleaning up old deployment..."
-            sudo rm -rf /var/lib/tomcat10/webapps/ROOT*
+            echo "1. Stopping Tomcat..."
+            sudo systemctl stop tomcat10 || true
             
-            echo "2. Verifying source WAR file exists..."
+            echo "2. Cleaning up old deployment..."
+            sudo rm -rf /var/lib/tomcat10/webapps/ROOT
+            sudo rm -rf /var/lib/tomcat10/webapps/ROOT.war
+            
+            echo "3. Verifying source WAR file exists..."
             if [ ! -f "/tmp/ROOT.war" ]; then
               echo "ERROR: /tmp/ROOT.war not found!"
               echo "Contents of /tmp:"
@@ -125,25 +129,37 @@ jobs:
             ls -lh /tmp/ROOT.war
             file /tmp/ROOT.war
             
-            echo "3. Copying WAR to webapps directory..."
+            echo "4. Copying WAR to webapps directory..."
             sudo cp /tmp/ROOT.war /var/lib/tomcat10/webapps/
             
-            echo "4. Setting permissions on WAR..."
+            echo "5. Setting permissions..."
             sudo chown tomcat:tomcat /var/lib/tomcat10/webapps/ROOT.war
             sudo chmod 644 /var/lib/tomcat10/webapps/ROOT.war
             
-            echo "5. Waiting for Tomcat auto-deployment..."
+            echo "6. Verifying WAR file in webapps..."
+            ls -lh /var/lib/tomcat10/webapps/
+            file /var/lib/tomcat10/webapps/ROOT.war
+            
+            echo "7. Creating ROOT directory..."
+            sudo mkdir -p /var/lib/tomcat10/webapps/ROOT
+            sudo chown tomcat:tomcat /var/lib/tomcat10/webapps/ROOT
+            sudo chmod 755 /var/lib/tomcat10/webapps/ROOT
+            
+            echo "8. Extracting WAR file..."
+            sudo -u tomcat unzip -o /var/lib/tomcat10/webapps/ROOT.war -d /var/lib/tomcat10/webapps/ROOT/
+            
+            echo "9. Setting permissions for extracted files..."
+            sudo chown -R tomcat:tomcat /var/lib/tomcat10/webapps/ROOT/
+            sudo chmod -R 755 /var/lib/tomcat10/webapps/ROOT/
+            
+            echo "10. Starting Tomcat..."
+            sudo systemctl start tomcat10
+            
+            echo "11. Waiting for startup..."
             sleep 30
             
-            echo "6. Verifying auto-deployment:"
+            echo "12. Verifying deployment:"
             ls -la /var/lib/tomcat10/webapps/
-            if [ -d "/var/lib/tomcat10/webapps/ROOT" ]; then
-              echo "Exploded ROOT directory created successfully:"
-              ls -la /var/lib/tomcat10/webapps/ROOT/
-              sudo chown -R tomcat:tomcat /var/lib/tomcat10/webapps/ROOT/  # Fallback perm fix if needed
-            else
-              echo "WARNING: ROOT directory not found yet - check Tomcat logs"
-            fi
             sudo systemctl status tomcat10 --no-pager
             
             echo "=== Deployment Completed Successfully ==="
